@@ -1,0 +1,5 @@
+# du4 install -> helpers install
+# du4 update -> helpers update
+# du4 uninstall -> helpers uninstall
+# du4 lab  -> du4lab
+# du4 nuke -> du4nuke
