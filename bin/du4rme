@@ -1,0 +1,211 @@
+#!/bin/bash
+# du4 rme command
+# 2024
+
+# ------------------------------------------------------------------------------
+# Usage
+# ------------------------------------------------------------------------------
+
+# du4 rme <file1> <file2> # Remove all files in the current directory except <file1> and <file2>
+# du4 rme --oops          # Revert files deleted from previous command using trash
+
+# ------------------------------------------------------------------------------
+# Config
+# ------------------------------------------------------------------------------
+
+
+DU4_RME_STATE_DIR=".du4/rme"
+DU4_RME_LAST_DIR="$DU4_RME_STATE_DIR/last"
+
+# ------------------------------------------------------------------------------
+# Code
+# ------------------------------------------------------------------------------
+
+set -euo pipefail
+
+usage() {
+  cat <<'EOF'
+Usage:
+  du4 rme [--dry-run] [--verbose] <keep1> [keep2...]
+  du4 rme --oops
+
+Behavior:
+  - Removes all files/directories in the current directory except items listed.
+  - Stores removed items under .du4/rme/last so they can be restored with --oops.
+EOF
+}
+
+log() {
+  if [ "${VERBOSE}" = "true" ]; then
+    printf '%s\n' "$*"
+  fi
+}
+
+is_keep_item() {
+  local item="$1"
+  local keep_item
+  for keep_item in "${KEEP_LIST[@]}"; do
+    if [ "$item" = "$keep_item" ]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+restore_last() {
+  if [ ! -d "$DU4_RME_LAST_DIR" ]; then
+    echo "Error: nothing to restore (no $DU4_RME_LAST_DIR)." >&2
+    exit 1
+  fi
+
+  if ! find "$DU4_RME_LAST_DIR" -mindepth 1 -print -quit | grep -q .; then
+    echo "Error: restore directory is empty." >&2
+    exit 1
+  fi
+
+  local item name target
+  for item in "$DU4_RME_LAST_DIR"/*; do
+    [ -e "$item" ] || continue
+    name="$(basename "$item")"
+    target="./$name"
+    if [ -e "$target" ]; then
+      echo "Error: cannot restore '$name' because it already exists." >&2
+      exit 1
+    fi
+    mv "$item" "$target"
+    log "Restored: $name"
+  done
+
+  rmdir "$DU4_RME_LAST_DIR" 2>/dev/null || true
+  log "Restore completed."
+}
+
+validate_keep_items() {
+  local keep_item
+  local missing=0
+
+  for keep_item in "${KEEP_LIST[@]}"; do
+    if [ -e "$keep_item" ] || [ -e "./$keep_item" ]; then
+      continue
+    fi
+    echo "Error: keep item '$keep_item' does not exist." >&2
+    missing=1
+  done
+
+  if [ "$missing" -ne 0 ]; then
+    exit 1
+  fi
+}
+
+remove_except() {
+  rm -rf "$DU4_RME_LAST_DIR"
+  mkdir -p "$DU4_RME_LAST_DIR"
+
+  local removed_any=false
+  local removed_count=0
+  local entry base
+  while IFS= read -r -d '' entry; do
+    base="$(basename "$entry")"
+    case "$base" in
+      ".du4")
+        continue
+        ;;
+    esac
+
+    if is_keep_item "$base"; then
+      log "Keeping: $base"
+      continue
+    fi
+
+    if [ "$DRY_RUN" = "true" ]; then
+      log "Would remove: $base"
+      removed_any=true
+      removed_count=$((removed_count + 1))
+      continue
+    fi
+
+    mv "$entry" "$DU4_RME_LAST_DIR/"
+    log "Removed: $base"
+    removed_any=true
+    removed_count=$((removed_count + 1))
+  done < <(find . -mindepth 1 -maxdepth 1 -print0)
+
+  if [ "$DRY_RUN" = "true" ]; then
+    rmdir "$DU4_RME_LAST_DIR" 2>/dev/null || true
+    log "Dry-run complete. $removed_count items would be removed."
+  else
+    if [ "$removed_any" = "false" ]; then
+      rmdir "$DU4_RME_LAST_DIR" || true
+      log "No files removed."
+    else
+      log "Removal completed. Run 'du4 rme --oops' to restore."
+    fi
+  fi
+}
+
+VERBOSE=false
+DRY_RUN=false
+DO_OOPS=false
+KEEP_LIST=()
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    help)
+      usage
+      exit 0
+      ;;
+    -v|--verbose)
+      VERBOSE=true
+      ;;
+    -n|--dry-run)
+      DRY_RUN=true
+      ;;
+    --oops)
+      DO_OOPS=true
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    --)
+      shift
+      while [ $# -gt 0 ]; do
+        KEEP_LIST+=("$(basename "$1")")
+        shift
+      done
+      break
+      ;;
+    -*)
+      echo "Error: unknown option '$1'." >&2
+      usage >&2
+      exit 1
+      ;;
+    *)
+      KEEP_LIST+=("$(basename "$1")")
+      ;;
+  esac
+  shift
+done
+
+if [ "$DO_OOPS" = "true" ]; then
+  if [ "${#KEEP_LIST[@]}" -gt 0 ]; then
+    echo "Error: --oops cannot be combined with keep items." >&2
+    exit 1
+  fi
+  if [ "$DRY_RUN" = "true" ]; then
+    echo "Error: --dry-run is not valid with --oops." >&2
+    exit 1
+  fi
+  restore_last
+  exit 0
+fi
+
+if [ "${#KEEP_LIST[@]}" -eq 0 ]; then
+  echo "Error: provide at least one item to keep." >&2
+  usage >&2
+  exit 1
+fi
+
+validate_keep_items
+
+remove_except
