@@ -6,8 +6,9 @@
 # Usage
 # ------------------------------------------------------------------------------
 
-# du4 rme <file1> <file2> # Remove all files in the current directory except <file1> and <file2>
-# du4 rme --oops          # Revert files deleted from previous command using trash
+# du4 rme <keep1> [keep2...] # Remove all files in the current directory except keep targets
+# du4 rme *.log              # Removes all files except log files
+# du4 rme --oops             # Revert files deleted from previous command using trash
 
 # ------------------------------------------------------------------------------
 # Config
@@ -31,6 +32,7 @@ Usage:
 
 Behavior:
   - Removes all files/directories in the current directory except items listed.
+  - Keep items can be explicit names or shell-style wildcard patterns (for example: "*.log").
   - Stores removed items under .du4/rme/last so they can be restored with --oops.
 EOF
 }
@@ -41,13 +43,28 @@ log() {
   fi
 }
 
+has_keep_match() {
+  local keep_item="$1"
+
+  if compgen -G -- "$keep_item" >/dev/null; then
+    return 0
+  fi
+  if compgen -G -- "./$keep_item" >/dev/null; then
+    return 0
+  fi
+
+  return 1
+}
+
 is_keep_item() {
   local item="$1"
   local keep_item
   for keep_item in "${KEEP_LIST[@]}"; do
-    if [ "$item" = "$keep_item" ]; then
-      return 0
-    fi
+    case "$item" in
+      $keep_item)
+        return 0
+        ;;
+    esac
   done
   return 1
 }
@@ -85,10 +102,10 @@ validate_keep_items() {
   local missing=0
 
   for keep_item in "${KEEP_LIST[@]}"; do
-    if [ -e "$keep_item" ] || [ -e "./$keep_item" ]; then
+    if has_keep_match "$keep_item"; then
       continue
     fi
-    echo "Error: keep item '$keep_item' does not exist." >&2
+    echo "Error: keep item '$keep_item' does not match any file in the current directory." >&2
     missing=1
   done
 
