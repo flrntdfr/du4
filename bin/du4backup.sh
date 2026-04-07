@@ -25,6 +25,8 @@ BACKUP_ENGINE="aa" # tar, txz, aa, zip
 # ------------------------------------------------------------------------------
 
 set -euo pipefail
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/../du4"
 
 usage() {
   cat <<'EOF'
@@ -35,7 +37,7 @@ EOF
 
 require_cmd() {
   command -v "$1" >/dev/null 2>&1 || {
-    echo "Error: required command '$1' is not installed." >&2
+    log stderr "Error: required command '$1' is not installed."
     exit 1
   }
 }
@@ -65,7 +67,7 @@ while [ $# -gt 0 ]; do
       exit 0
       ;;
     *)
-      echo "Error: unknown option '$1'." >&2
+      log stderr "Error: unknown option '$1'."
       usage >&2
       exit 1
       ;;
@@ -74,7 +76,7 @@ while [ $# -gt 0 ]; do
 done
 
 if [ ! -e "$SOURCE" ]; then
-  echo "Error: source '$SOURCE' does not exist." >&2
+  log stderr "Error: source '$SOURCE' does not exist."
   exit 1
 fi
 
@@ -89,7 +91,7 @@ case "$ENGINE" in
     :
     ;;
   *)
-    echo "Error: unsupported engine '$ENGINE'. Use tar, txz, aa, or zip." >&2
+    log stderr "Error: unsupported engine '$ENGINE'. Use tar, txz, aa, or zip."
     exit 1
     ;;
 esac
@@ -126,7 +128,7 @@ case "$ENGINE" in
     )
     ;;
   *)
-    echo "Error: unsupported engine '$ENGINE'. Use tar, txz, aa, or zip." >&2
+    log stderr "Error: unsupported engine '$ENGINE'. Use tar, txz, aa, or zip."
     exit 1
     ;;
 esac

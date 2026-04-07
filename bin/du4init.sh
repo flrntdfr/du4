@@ -19,6 +19,8 @@
 # Code
 # ------------------------------------------------------------------------------
 set -euo pipefail
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/../du4"
 
 usage() {
   cat <<'EOF'
@@ -39,7 +41,7 @@ case "$template" in
   tf|latex|brief|html)
     ;;
   *)
-    echo "Error: unknown template '$template'." >&2
+    log stderr "Error: unknown template '$template'."
     usage >&2
     exit 1
     ;;

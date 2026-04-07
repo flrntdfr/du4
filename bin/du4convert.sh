@@ -19,6 +19,8 @@
 # ------------------------------------------------------------------------------
 
 set -euo pipefail
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/../du4"
 
 usage() {
   cat <<'EOF'
@@ -43,7 +45,7 @@ to_lower() {
 
 require_cmd() {
   command -v "$1" >/dev/null 2>&1 || {
-    echo "Error: required command '$1' not found." >&2
+    log stderr "Error: required command '$1' not found."
     exit 1
   }
 }
@@ -174,7 +176,7 @@ matches=( $src )
 shopt -u nullglob
 
 if [ ${#matches[@]} -eq 0 ]; then
-  echo "Error: input '$src' does not exist and pattern matched no files." >&2
+  log stderr "Error: input '$src' does not exist and pattern matched no files."
   exit 1
 fi
 

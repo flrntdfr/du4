@@ -23,6 +23,8 @@ DU4_RME_LAST_DIR="$DU4_RME_STATE_DIR/last"
 # ------------------------------------------------------------------------------
 
 set -euo pipefail
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/../du4"
 
 usage() {
   cat <<'EOF'
@@ -35,12 +37,6 @@ Behavior:
   - Keep items can be explicit names or shell-style wildcard patterns (for example: "*.log").
   - Stores removed items under .du4/rme/last so they can be restored with --oops.
 EOF
-}
-
-log() {
-  if [ "${VERBOSE}" = "true" ]; then
-    printf '%s\n' "$*"
-  fi
 }
 
 has_keep_match() {
@@ -71,12 +67,12 @@ is_keep_item() {
 
 restore_last() {
   if [ ! -d "$DU4_RME_LAST_DIR" ]; then
-    echo "Error: nothing to restore (no $DU4_RME_LAST_DIR)." >&2
+    log stderr "Error: nothing to restore (no $DU4_RME_LAST_DIR)."
     exit 1
   fi
 
   if ! find "$DU4_RME_LAST_DIR" -mindepth 1 -print -quit | grep -q .; then
-    echo "Error: restore directory is empty." >&2
+    log stderr "Error: restore directory is empty."
     exit 1
   fi
 
@@ -86,15 +82,15 @@ restore_last() {
     name="$(basename "$item")"
     target="./$name"
     if [ -e "$target" ]; then
-      echo "Error: cannot restore '$name' because it already exists." >&2
+      log stderr "Error: cannot restore '$name' because it already exists."
       exit 1
     fi
     mv "$item" "$target"
-    log "Restored: $name"
+    log stdout "Restored: $name"
   done
 
   rmdir "$DU4_RME_LAST_DIR" 2>/dev/null || true
-  log "Restore completed."
+  log stdout "Restore completed."
 }
 
 validate_keep_items() {
@@ -105,7 +101,7 @@ validate_keep_items() {
     if has_keep_match "$keep_item"; then
       continue
     fi
-    echo "Error: keep item '$keep_item' does not match any file in the current directory." >&2
+    log stderr "Error: keep item '$keep_item' does not match any file in the current directory."
     missing=1
   done
 
@@ -130,32 +126,32 @@ remove_except() {
     esac
 
     if is_keep_item "$base"; then
-      log "Keeping: $base"
+      log stdout "Keeping: $base"
       continue
     fi
 
     if [ "$DRY_RUN" = "true" ]; then
-      log "Would remove: $base"
+      log stdout "Would remove: $base"
       removed_any=true
       removed_count=$((removed_count + 1))
       continue
     fi
 
     mv "$entry" "$DU4_RME_LAST_DIR/"
-    log "Removed: $base"
+    log stdout "Removed: $base"
     removed_any=true
     removed_count=$((removed_count + 1))
   done < <(find . -mindepth 1 -maxdepth 1 -print0)
 
   if [ "$DRY_RUN" = "true" ]; then
     rmdir "$DU4_RME_LAST_DIR" 2>/dev/null || true
-    log "Dry-run complete. $removed_count items would be removed."
+    log stdout "Dry-run complete. $removed_count items would be removed."
   else
     if [ "$removed_any" = "false" ]; then
       rmdir "$DU4_RME_LAST_DIR" || true
-      log "No files removed."
+      log stdout "No files removed."
     else
-      log "Removal completed. Run 'du4 rme --oops' to restore."
+      log stdout "Removal completed. Run 'du4 rme --oops' to restore."
     fi
   fi
 }
@@ -173,6 +169,7 @@ while [ $# -gt 0 ]; do
       ;;
     -v|--verbose)
       VERBOSE=true
+      du4_set_verbose 1
       ;;
     -n|--dry-run)
       DRY_RUN=true
@@ -193,7 +190,7 @@ while [ $# -gt 0 ]; do
       break
       ;;
     -*)
-      echo "Error: unknown option '$1'." >&2
+      log stderr "Error: unknown option '$1'."
       usage >&2
       exit 1
       ;;
@@ -206,11 +203,11 @@ done
 
 if [ "$DO_OOPS" = "true" ]; then
   if [ "${#KEEP_LIST[@]}" -gt 0 ]; then
-    echo "Error: --oops cannot be combined with keep items." >&2
+    log stderr "Error: --oops cannot be combined with keep items."
     exit 1
   fi
   if [ "$DRY_RUN" = "true" ]; then
-    echo "Error: --dry-run is not valid with --oops." >&2
+    log stderr "Error: --dry-run is not valid with --oops."
     exit 1
   fi
   restore_last
@@ -218,7 +215,7 @@ if [ "$DO_OOPS" = "true" ]; then
 fi
 
 if [ "${#KEEP_LIST[@]}" -eq 0 ]; then
-  echo "Error: provide at least one item to keep." >&2
+  log stderr "Error: provide at least one item to keep."
   usage >&2
   exit 1
 fi

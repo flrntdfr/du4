@@ -34,6 +34,8 @@ NOW_SLOT_9=""
 # Code
 # ------------------------------------------------------------------------------
 set -euo pipefail
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/../du4"
 
 SCRIPT_PATH="${BASH_SOURCE[0]}"
 
@@ -76,7 +78,7 @@ read_slot() {
 set_slot() {
   local slot="$1"
   local path="$2"
-  [ -d "$path" ] || { echo "Error: directory '$path' not found." >&2; exit 1; }
+  [ -d "$path" ] || { log stderr "Error: directory '$path' not found."; exit 1; }
   path="$(cd "$path" && pwd)"
   set_state_var "NOW_SLOT_${slot}" "$path"
   echo "Set now$slot=$path"
@@ -84,7 +86,7 @@ set_slot() {
 
 set_default() {
   local path="$1"
-  [ -d "$path" ] || { echo "Error: directory '$path' not found." >&2; exit 1; }
+  [ -d "$path" ] || { log stderr "Error: directory '$path' not found."; exit 1; }
   path="$(cd "$path" && pwd)"
   set_state_var NOW_DEFAULT "$path"
   echo "Set now=$path"
@@ -92,17 +94,17 @@ set_default() {
 
 emit_cd() {
   local path="$1"
-  [ -n "$path" ] || { echo "Error: no path configured." >&2; exit 1; }
-  [ -d "$path" ] || { echo "Error: configured path '$path' does not exist. Run --prune." >&2; exit 1; }
+  [ -n "$path" ] || { log stderr "Error: no path configured."; exit 1; }
+  [ -d "$path" ] || { log stderr "Error: configured path '$path' does not exist. Run --prune."; exit 1; }
   echo "cd $(quote_shell "$path")"
 }
 
 open_now_in_finder() {
   local path="$1"
-  [ -n "$path" ] || { echo "Error: no path configured." >&2; exit 1; }
-  [ -d "$path" ] || { echo "Error: configured path '$path' does not exist. Run --prune." >&2; exit 1; }
+  [ -n "$path" ] || { log stderr "Error: no path configured."; exit 1; }
+  [ -d "$path" ] || { log stderr "Error: configured path '$path' does not exist. Run --prune."; exit 1; }
   command -v open >/dev/null 2>&1 || {
-    echo "Error: 'open' command not found; cannot launch Finder." >&2
+    log stderr "Error: 'open' command not found; cannot launch Finder."
     exit 1
   }
   open -a Finder "$path"

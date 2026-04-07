@@ -12,6 +12,31 @@ set -euo pipefail
 
 DU4_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DU4_BIN_PATH="$DU4_ROOT/bin"
+: "${DU4_VERBOSE:=0}"
+
+du4_set_verbose() {
+  DU4_VERBOSE="${1:-0}"
+  export DU4_VERBOSE
+}
+
+log() {
+  local stream="${1:-stdout}"
+  shift || true
+  case "$stream" in
+    stdout)
+      if [ "${DU4_VERBOSE:-0}" -eq 1 ]; then
+        echo "$*"
+      fi
+      ;;
+    stderr)
+      echo "$*" >&2
+      ;;
+    *)
+      echo "Error: invalid log stream '$stream'." >&2
+      exit 1
+      ;;
+  esac
+}
 
 list_commands() {
   local file name
@@ -27,7 +52,7 @@ list_commands() {
 
 usage() {
   cat <<'EOF'
-Usage: du4 <command> [args...]
+Usage: du4 [-v|--verbose] <command> [args...]
 
 Run "du4 help" to list available commands.
 EOF
@@ -55,26 +80,37 @@ resolve_bin() {
   return 1
 }
 
-if [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ] || [ $# -eq 0 ]; then
-  usage
-  echo
-  run_help
-  exit 0
+du4_main() {
+  if [ "${1:-}" = "-v" ] || [ "${1:-}" = "--verbose" ]; then
+    du4_set_verbose 1
+    shift
+  fi
+
+  if [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ] || [ $# -eq 0 ]; then
+    usage
+    echo
+    run_help
+    return 0
+  fi
+
+  command="$1"
+  shift || true
+
+  if [ "$command" = "help" ]; then
+    run_help
+    return 0
+  fi
+
+  if ! script_path="$(resolve_bin "$command")"; then
+    log stderr "Error: unknown command '$command'."
+    log stderr ""
+    run_help >&2
+    return 1
+  fi
+
+  exec "$script_path" "$@"
+}
+
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  du4_main "$@"
 fi
-
-command="$1"
-shift || true
-
-if [ "$command" = "help" ]; then
-  run_help
-  exit 0
-fi
-
-if ! script_path="$(resolve_bin "$command")"; then
-  echo "Error: unknown command '$command'." >&2
-  echo >&2
-  run_help >&2
-  exit 1
-fi
-
-exec "$script_path" "$@"
